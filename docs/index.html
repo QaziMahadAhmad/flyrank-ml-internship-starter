@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ranking Content Pages for SEO Review Using Position-Relative CTR</title>
+<meta name="description" content="A research paper on ranking content pages for SEO review using a position-relative click-through rate signal, built on the FlyRank ML Internship dataset.">
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --surface: #ffffff;
+    --text: #1c1c1e;
+    --text-soft: #4a4a4d;
+    --border: #e4e0d8;
+    --accent: #8a3b12;
+    --accent-soft: #f4e9dd;
+    --pos: #2f6f4f;
+    --neg: #a13f2b;
+    --code-bg: #f2efe9;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    box-sizing: border-box;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15140f;
+      --surface: #1c1b16;
+      --text: #ece7dc;
+      --text-soft: #b8b2a3;
+      --border: #38352a;
+      --accent: #e0894a;
+      --accent-soft: #2c2419;
+      --pos: #6fc999;
+      --neg: #e08a6f;
+      --code-bg: #221f18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15140f;
+    --surface: #1c1b16;
+    --text: #ece7dc;
+    --text-soft: #b8b2a3;
+    --border: #38352a;
+    --accent: #e0894a;
+    --accent-soft: #2c2419;
+    --pos: #6fc999;
+    --neg: #e08a6f;
+    --code-bg: #221f18;
+  }
+  * { box-sizing: border-box; }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: calc(24px + env(safe-area-inset-top, 0px));
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.65;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  a { color: var(--accent); }
+  a:hover { text-decoration: none; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 760px);
+    justify-content: center;
+    gap: 56px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 100px;
+  }
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: minmax(0, 1fr); padding: 24px 18px 80px; }
+    #toc { display: none; }
+  }
+
+  #toc {
+    position: sticky;
+    top: calc(28px + env(safe-area-inset-top, 0px));
+    align-self: start;
+    max-height: calc(100vh - 56px);
+    overflow-y: auto;
+    font-size: 0.86rem;
+    padding-right: 8px;
+  }
+  #toc .toc-label {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.72rem;
+    color: var(--text-soft);
+    margin-bottom: 10px;
+  }
+  #toc ul { list-style: none; margin: 0; padding: 0; }
+  #toc li { margin: 3px 0; }
+  #toc a {
+    display: block;
+    color: var(--text-soft);
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
+  }
+  #toc a:hover { color: var(--text); background: var(--accent-soft); }
+  #toc a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 600;
+  }
+
+  main { min-width: 0; }
+
+  header.masthead { margin-bottom: 40px; }
+  @media (max-width: 560px) {
+    header.masthead { padding-right: 96px; }
+  }
+  .kicker {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  h1.title {
+    font-family: var(--serif);
+    font-size: clamp(1.7rem, 3.4vw, 2.5rem);
+    line-height: 1.22;
+    margin: 0 0 18px;
+    font-weight: 600;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    font-size: 0.85rem;
+    color: var(--text-soft);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+  }
+  .meta-row div span { color: var(--text); font-weight: 600; }
+
+  section { margin: 52px 0; scroll-margin-top: 24px; }
+  section > h2 {
+    font-family: var(--serif);
+    font-size: 1.5rem;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+    padding-bottom: 4px;
+    margin: 0 0 20px;
+  }
+  h3 {
+    font-family: var(--serif);
+    font-size: 1.12rem;
+    margin: 30px 0 10px;
+    color: var(--text);
+  }
+  p { margin: 0 0 16px; color: var(--text); }
+  .lede {
+    font-family: var(--serif);
+    font-size: 1.12rem;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    padding: 22px 24px;
+    border-radius: 6px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  pre {
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0 8px;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--text-soft); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.total td { font-weight: 700; border-top: 2px solid var(--border); }
+  .table-wrap { overflow-x: auto; }
+
+  .figure {
+    margin: 26px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .figure img, .figure svg { width: 100%; height: auto; display: block; }
+  .figcaption {
+    font-size: 0.85rem;
+    color: var(--text-soft);
+    margin-top: 12px;
+    border-top: 1px dashed var(--border);
+    padding-top: 10px;
+  }
+
+  .callout {
+    border: 1px solid var(--border);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 18px 0;
+    font-size: 0.94rem;
+  }
+  .callout strong { color: var(--accent); }
+
+  ul.limits, ul.checks { padding-left: 22px; }
+  ul.limits li, ul.checks li { margin-bottom: 14px; }
+
+  .pill {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 2px 10px;
+    border-radius: 999px;
+  }
+  .pill.confirmed { background: #e2f1e8; color: var(--pos); }
+  .pill.rejected { background: #f5e4e0; color: var(--neg); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .pill.confirmed { background: #1c3327; }
+    :root:not([data-theme="light"]) .pill.rejected { background: #3a231d; }
+  }
+  :root[data-theme="dark"] .pill.confirmed { background: #1c3327; }
+  :root[data-theme="dark"] .pill.rejected { background: #3a231d; }
+
+  footer {
+    margin-top: 70px;
+    padding-top: 26px;
+    border-top: 1px solid var(--border);
+    font-size: 0.88rem;
+    color: var(--text-soft);
+  }
+  footer a { font-weight: 600; }
+
+  .theme-toggle {
+    position: fixed;
+    top: calc(18px + env(safe-area-inset-top, 0px));
+    right: 18px;
+    z-index: 20;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    color: var(--text-soft);
+    cursor: pointer;
+  }
+
+  ::selection { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">Toggle theme</button>
+
+<div class="layout">
+  <nav id="toc" aria-label="Table of contents">
+    <div class="toc-label">Contents</div>
+    <ul>
+      <li><a href="#abstract">Abstract</a></li>
+      <li><a href="#introduction">1. Introduction</a></li>
+      <li><a href="#data">2. Data</a></li>
+      <li><a href="#methodology">3. Methodology</a></li>
+      <li><a href="#results">4. Results</a></li>
+      <li><a href="#limitations">5. Limitations</a></li>
+      <li><a href="#recommendations">6. Recommendations</a></li>
+      <li><a href="#reproducibility">7. Reproducibility</a></li>
+      <li><a href="#acknowledgments">Acknowledgments</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <header class="masthead">
+      <div class="kicker">FlyRank ML Internship &middot; Applied Search Intelligence</div>
+      <h1 class="title">Ranking Content Pages for SEO Review Using Position-Relative Click-Through Rate</h1>
+      <div class="meta-row">
+        <div>Lane: <span>Refresh / Content Opportunity Scoring</span></div>
+        <div>Dataset: <span>FlyRank ML Internship warehouse</span></div>
+        <div>Model: <span>HistGradientBoostingRegressor</span></div>
+        <div>Validation: <span>5-fold client-grouped CV</span></div>
+        <div>Repository: <a href="https://github.com/QaziMahadAhmad/flyrank-ml-internship-starter" target="_blank" rel="noopener">GitHub</a></div>
+      </div>
+    </header>
+
+    <section id="abstract">
+      <h2>Abstract</h2>
+      <p class="lede">
+        Content teams managing thousands of pages cannot manually review all of them for search
+        performance issues, so this project asks a focused question: can a transparent,
+        position-relative click-through rate (CTR) signal, and a machine learning model built on
+        top of it, reliably identify which pages are worth reviewing first? Using an anonymized
+        warehouse of Google Search Console data, a single-signal baseline rule (CTR gap versus a
+        page's position) was built and validated, alongside a second candidate signal (content
+        staleness) that was tested and rejected. A gradient-boosted model was then trained on
+        pre-decision features only and evaluated under five-fold client-grouped cross-validation
+        against a fairness-matched version of the baseline, restricted to the 83,310
+        query-content pairs with genuine prior click activity so that a tie-heavy label would not
+        distort the comparison. Across all five held-out client folds, the model's top-50
+        selections averaged a real, subsequently observed CTR gap of +0.0028, close to the
+        underperformance threshold this system targets, while the baseline's top-50 selections
+        averaged &minus;0.0694, meaning those pages actually converted better than their position
+        would predict once the outcome period arrived, a consistent difference of +0.0721 in the
+        same units as the underlying business metric. This paper walks through that result along
+        with the methodology, the leakage controls, and a couple of real evaluation mistakes that
+        were caught and corrected along the way, in keeping with treating this as
+        production-oriented ML work rather than a leaderboard exercise.
+      </p>
+    </section>
+
+    <section id="introduction">
+      <h2>1. Introduction</h2>
+      <p>
+        An SEO or content team responsible for a large site, or in FlyRank's case many client
+        sites, cannot read every page's search performance report every week. Some pages rank
+        well in Google but earn far fewer clicks than their position would predict, and finding
+        those pages is a natural, high-value place to focus limited review time.
+      </p>
+      <p>
+        This project treats that as a decision-support problem rather than an automation problem.
+        The goal is simply to rank content pages by how much they underperform expectations, so
+        that a human reviews the top of that list first. It deliberately steers clear of two
+        overreaches that are easy to make with this kind of data: trying to predict Google's
+        ranking algorithm itself, and asserting that any specific page definitely needs a content
+        refresh. The system produces a prioritized list with a stated reason for each entry, and a
+        person decides what, if anything, to do about each page.
+      </p>
+    </section>
+
+    <section id="data">
+      <h2>2. Data</h2>
+      <p>
+        <strong>Source:</strong> the FlyRank ML Internship warehouse, an anonymized snapshot of
+        Google Search Console performance data covering 104 clients, 519,606 distinct content
+        items, and roughly 78.8 million daily content-performance records.
+      </p>
+
+      <h3>Tables used</h3>
+      <ul>
+        <li><code>fact_content_daily_performance</code> &mdash; content-level daily search
+          performance (impressions, clicks, average position), aggregated to monthly totals for
+          this project.</li>
+        <li><code>fact_content_query_90d</code> &mdash; query-level performance over a fixed
+          90-day window (2026-04-02 to 2026-06-30, verified directly against the data rather than
+          assumed), with two named 30-day sub-windows: <code>prev30</code> and <code>last30</code>.</li>
+        <li><code>dim_content</code> &mdash; static content and SEO metadata such as word count,
+          backlinks, search volume, competition, and content type.</li>
+      </ul>
+
+      <p>
+        <strong>Date windows:</strong> the daily-performance table covers a single calendar month
+        (June 2026) at content grain. The query-level table covers a fixed 90-day snapshot at
+        query grain, with the final 30 days (<code>last30</code>) held out as the outcome period
+        for the model's label.
+      </p>
+
+      <h3>What was excluded, and why</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Excluded</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>impressions_90d</code>, <code>clicks_90d</code>,
+                  <code>avg_position_90d</code>, <code>content_total_impressions_90d</code></td>
+              <td>Each spans the full 90-day window, which numerically contains the
+                  <code>last30</code> outcome period, so using them as model inputs would leak
+                  the label into the input.</td>
+            </tr>
+            <tr>
+              <td><code>provider_used</code>, <code>model_used</code></td>
+              <td>Internal or operational fields, not signals about page quality.</td>
+            </tr>
+            <tr>
+              <td><code>content_updated_date</code>, <code>last_optimized_date</code></td>
+              <td>May reflect decisions FlyRank's own system already made in response to past
+                  performance, so using them risks learning past decisions instead of new signal.</td>
+            </tr>
+            <tr>
+              <td><code>anonymized_impressions_share</code></td>
+              <td>Could distort CTR calculations from unresolvable or anonymized search volume.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <strong>Public-safety note.</strong> Every identifier in the underlying data is an
+        anonymized hash. No client names, page URLs, or raw search queries appear anywhere in this
+        paper or in the underlying analysis; every figure reported is an aggregate or a bucketed
+        statistic.
+      </div>
+
+      <h3>Sample size funnel</h3>
+      <p>
+        <code>fact_content_query_90d</code> starts at 2,414,248 rows. Restricting to rows with
+        genuine click activity in the outcome window (<code>clicks_last30 &gt; 0</code>, explained
+        in Section 4.1) leaves 85,115 rows, roughly 3.5% of the original table. After joining live
+        content metadata and removing rows without a valid target, 83,310 rows across 41 unique
+        clients remain as the modeling population. That large reduction reflects the simple fact
+        that most individual query-content pairs receive zero clicks in any given 30-day window,
+        which is normal for long-tail search traffic rather than a sign of a data quality problem.
+      </p>
+    </section>
+
+    <section id="methodology">
+      <h2>3. Methodology</h2>
+
+      <h3>3.1 Label definition</h3>
+      <p>
+        The core quantity throughout this project is the CTR gap: the difference between the CTR
+        a page "should" get, given its average search position, and the CTR it actually gets.
+      </p>
+      <pre><code>ctr_gap = expected_ctr(position_bucket) - actual_ctr</code></pre>
+      <p>
+        <code>expected_ctr(position_bucket)</code> is computed empirically from the data itself,
+        as the observed average CTR for all pages in the same position bucket (1-3, 3-5, 5-10,
+        10-20, 20-50, 50+), not from an assumed industry curve. A positive <code>ctr_gap</code>
+        means a page converts worse than typical pages at its position, and that gap, weighted by
+        impression volume, is the project's ranking score.
+      </p>
+
+      <h3>3.2 Feature set and leakage boundary</h3>
+      <p>
+        The feature set is restricted to information available before the outcome period a model
+        would be scored against: prior-30-day (<code>prev30</code>) search performance, plus
+        static content and SEO metadata such as word count, backlinks, search volume, and
+        competition. Two leakage checks were applied to every candidate feature. The first is a
+        window-overlap check, asking whether a field numerically spans the outcome period, which
+        is why the <code>_90d</code> aggregates were excluded. The second is a product or
+        decision-flag check, asking whether a field reflects an action already taken because of
+        past performance rather than an independent signal, which is why
+        <code>content_updated_date</code> and <code>last_optimized_date</code> were excluded.
+      </p>
+      <p>
+        As a direct test of the leakage boundary, a label-period column was deliberately added
+        back into the feature set to confirm the test harness could actually detect it. The first
+        version of this test used a raw count field and showed no change in correlation at all.
+        That turned out to be a flaw in the test itself, not the leakage boundary: a raw count is
+        not linearly related to a ratio-based target, so the test needed a different column to be
+        meaningful. It was corrected before being relied on.
+      </p>
+
+      <h3>3.3 Signal validation</h3>
+      <p>Before building any rule, two candidate signals were tested directly against bucketed
+        real data rather than assumed to be true.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Signal</th><th>Hypothesis</th><th>Verdict</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>CTR vs. position</td>
+              <td>Pages ranking well but converting poorly are a real, identifiable pattern</td>
+              <td><span class="pill confirmed">Confirmed</span></td>
+            </tr>
+            <tr>
+              <td>Content staleness (days since last update) vs. performance decline</td>
+              <td>Older content declines more</td>
+              <td><span class="pill rejected">Rejected</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="figure">
+        <img src="assets/ctr_by_position_bucket.png" alt="Bar chart of observed CTR by average position bucket, showing CTR falling sharply from about 4.4% in positions 1-3 to under 0.1% at position 50+.">
+        <div class="figcaption">
+          <strong>Figure 1.</strong> Observed CTR by position bucket, computed directly from the
+          content-level daily performance data. This is the empirical curve the baseline's
+          "expected CTR" benchmark is built from &mdash; not an assumed industry curve.
+          Generated in <code>w07_action_playbook.ipynb</code>.
+        </div>
+      </div>
+      <p>
+        The confirmed signal, CTR versus position, is also independently supported by FlyRank's
+        own published research (internal reference, March 2026), which reports an 88% CTR drop
+        from top-3 to deep search positions across a much larger portfolio, essentially an
+        external replication of the same direction found here. The rejected signal, staleness, is
+        discussed further in Section 5, where it is contrasted with a related published finding
+        that reached a different conclusion.
+      </p>
+
+      <h3>3.4 Baseline</h3>
+      <p>
+        The baseline is a single-signal, single-reason-code rule: rank content pages by
+        <code>ctr_gap &times; impressions</code>, so a modest gap on a high-traffic page outranks
+        a large gap on a negligible one, restricted to pages already ranking in the top 20 average
+        position with at least 50 monthly impressions. Every recommendation carries one reason
+        code (<code>CTR_GAP_VS_POSITION</code>) and one suggested action
+        (<code>REWRITE_TITLE_META</code>). It is deliberately simple and auditable, and it
+        functions as the floor a more complex model has to clear to be worth using.
+      </p>
+
+      <h3>3.5 Model and validation design</h3>
+      <p>
+        A gradient-boosted regression model (<code>HistGradientBoostingRegressor</code>,
+        <code>random_state=42</code>) was trained to predict <code>ctr_gap_last30</code> using
+        only <code>prev30</code> and static features, never the current outcome period's own
+        numbers, so that it respects the same information boundary the baseline needs to respect
+        for a fair comparison. Validation used <code>GroupKFold</code> with five folds, grouped by
+        client, rather than a random row-level split. A client's overall site quality is a hidden
+        factor shared across all of its content, so a random split would let the model partially
+        recognize a client it already saw in training, inflating the apparent score without
+        proving the model generalizes to a genuinely new client.
+      </p>
+
+      <h3>3.6 Tie-aware evaluation &mdash; a correction made during development</h3>
+      <p>
+        An initial evaluation pass scored every query-content pair regardless of activity level
+        and used Precision@50, exact top-K set overlap, as the metric. That result came back
+        essentially at zero for both the model and the baseline, and the cause turned out to be
+        the same for both: with no clicks in <code>last30</code>, <code>ctr_gap_last30</code>
+        collapses to a fixed constant per position bucket, and roughly a quarter of the full row
+        set shared the single most common value. In practice, "the true top 50" was an arbitrary
+        slice of a tie block containing hundreds of thousands of rows, not a meaningful ranking
+        target. This was diagnosed directly, by checking the fraction of rows sharing the most
+        common target value, rather than assumed. It was corrected two ways: first by restricting
+        evaluation to rows with real outcome-period click activity, and second by reporting the
+        mean actual outcome among each method's top-50 selections, a metric that degrades
+        gracefully in the presence of residual ties, as the primary result instead of exact top-K
+        set overlap.
+      </p>
+    </section>
+
+    <section id="results">
+      <h2>4. Results</h2>
+
+      <h3>4.1 Evaluation population</h3>
+      <p>
+        As described in Section 3.6, an earlier evaluation pass across all query-content pairs
+        regardless of recent activity produced a degenerate result. Evaluation was corrected by
+        restricting to query-content pairs with genuine click activity in the outcome period. This
+        reduces the population from 2,414,248 raw query-content rows to 85,115 rows with real
+        <code>last30</code> clicks, and then to 83,310 modeling rows (21 features, 41 unique
+        clients) after joining live content metadata and removing rows without a valid target.
+        This is a real, stated narrowing of scope, and Section 5 addresses what it means for the
+        claim below.
+      </p>
+
+      <h3>4.2 Validation design actually used</h3>
+      <p>Five-fold <code>GroupKFold</code> on <code>client_hash_id</code>, confirming no client
+        appears in both train and test in any fold.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Fold</th><th class="num">Test rows</th><th class="num">Test clients</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td class="num">20,256</td><td class="num">1</td></tr>
+            <tr><td>1</td><td class="num">15,766</td><td class="num">10</td></tr>
+            <tr><td>2</td><td class="num">15,763</td><td class="num">9</td></tr>
+            <tr><td>3</td><td class="num">15,763</td><td class="num">11</td></tr>
+            <tr><td>4</td><td class="num">15,762</td><td class="num">10</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Every fold comfortably exceeds 50 rows, so a top-50 evaluation is well defined in each one.</p>
+
+      <h3>4.3 Primary result: mean actual outcome among each method's top-50 picks</h3>
+      <p>
+        For each fold, the model (trained on <code>prev30</code>-and-earlier features only) and a
+        fairness-matched baseline (the same CTR-gap-versus-position rule, computed on
+        <code>prev30</code> data only, so neither method sees the outcome period) each selected
+        their top 50 pages. Both selections were then checked against the real, subsequently
+        observed <code>ctr_gap_last30</code>:
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Fold</th><th class="num">Model mean true CTR gap (top-50)</th><th class="num">Baseline mean true CTR gap (top-50)</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td class="num">+0.001634</td><td class="num">&minus;0.062375</td></tr>
+            <tr><td>1</td><td class="num">+0.003094</td><td class="num">&minus;0.042114</td></tr>
+            <tr><td>2</td><td class="num">+0.003739</td><td class="num">&minus;0.123647</td></tr>
+            <tr><td>3</td><td class="num">+0.004373</td><td class="num">&minus;0.073498</td></tr>
+            <tr><td>4</td><td class="num">+0.000929</td><td class="num">&minus;0.045210</td></tr>
+            <tr class="total"><td>Mean</td><td class="num">+0.002754</td><td class="num">&minus;0.069369</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="figure">
+        <svg viewBox="0 0 550 330" role="img" aria-labelledby="fig2title fig2desc">
+          <title id="fig2title">Mean actual CTR gap among each method's top-50 selections, by fold</title>
+          <desc id="fig2desc">A grouped bar chart across five folds showing the model's selections landing close to zero (near +0.001 to +0.004) while the baseline's selections are consistently negative, ranging from about -0.04 to -0.12.</desc>
+          <line x1="60" y1="48.6" x2="510" y2="48.6" style="stroke:var(--border)" stroke-width="1.5"/>
+          <line x1="60" y1="30" x2="60" y2="290" style="stroke:var(--border)" stroke-width="1.5"/>
+          <text x="55" y="52" font-size="10" style="fill:var(--text-soft)" text-anchor="end">0.00</text>
+          <text x="55" y="150" font-size="10" style="fill:var(--text-soft)" text-anchor="end">-0.06</text>
+          <text x="55" y="253" font-size="10" style="fill:var(--text-soft)" text-anchor="end">-0.12</text>
+          <line x1="60" y1="150" x2="510" y2="150" style="stroke:var(--border)" stroke-width="0.5" stroke-dasharray="3,3"/>
+          <line x1="60" y1="253" x2="510" y2="253" style="stroke:var(--border)" stroke-width="0.5" stroke-dasharray="3,3"/>
+
+          <rect x="70" y="45.5" width="28" height="3.0" style="fill:var(--pos)"/>
+          <rect x="104" y="48.6" width="28" height="115.8" style="fill:var(--neg)"/>
+          <text x="98" y="305" font-size="11" style="fill:var(--text-soft)" text-anchor="middle">Fold 0</text>
+
+          <rect x="160" y="42.8" width="28" height="5.7" style="fill:var(--pos)"/>
+          <rect x="194" y="48.6" width="28" height="78.2" style="fill:var(--neg)"/>
+          <text x="188" y="305" font-size="11" style="fill:var(--text-soft)" text-anchor="middle">Fold 1</text>
+
+          <rect x="250" y="41.6" width="28" height="6.9" style="fill:var(--pos)"/>
+          <rect x="284" y="48.6" width="28" height="229.6" style="fill:var(--neg)"/>
+          <text x="278" y="305" font-size="11" style="fill:var(--text-soft)" text-anchor="middle">Fold 2</text>
+
+          <rect x="340" y="40.5" width="28" height="8.1" style="fill:var(--pos)"/>
+          <rect x="374" y="48.6" width="28" height="136.5" style="fill:var(--neg)"/>
+          <text x="368" y="305" font-size="11" style="fill:var(--text-soft)" text-anchor="middle">Fold 3</text>
+
+          <rect x="430" y="46.8" width="28" height="1.7" style="fill:var(--pos)"/>
+          <rect x="464" y="48.6" width="28" height="84.0" style="fill:var(--neg)"/>
+          <text x="458" y="305" font-size="11" style="fill:var(--text-soft)" text-anchor="middle">Fold 4</text>
+
+          <rect x="60" y="318" width="12" height="12" style="fill:var(--pos)"/>
+          <text x="76" y="328" font-size="11" style="fill:var(--text)">Model</text>
+          <rect x="140" y="318" width="12" height="12" style="fill:var(--neg)"/>
+          <text x="156" y="328" font-size="11" style="fill:var(--text)">Baseline</text>
+        </svg>
+        <div class="figcaption">
+          <strong>Figure 2.</strong> Mean actual, subsequently observed <code>ctr_gap_last30</code>
+          among each method's top-50 selections, per fold. Values above the zero line mean the
+          selected pages genuinely underperformed in the outcome period (the intended target);
+          values below mean the selected pages actually converted better than expected. Drawn
+          directly from the Section 4.3 table, no interpolation or smoothing applied.
+        </div>
+      </div>
+
+      <p>
+        The difference is +0.072122, consistent in direction across all five folds. A positive
+        <code>ctr_gap</code> means a page converts worse than typical for its position, which is
+        the underperformance this system is built to surface. A negative value means the page
+        already converts better than typical. The model's picks land close to the actual
+        underperformance threshold once the outcome period arrives, while the baseline's picks
+        turn out, on average, to have been fine all along. A plausible explanation, consistent
+        with how the baseline is built, is regression to the mean: <code>prev30_ctr_gap</code> for
+        a low-traffic query can be an extreme, noisy ratio, for example one impression and zero
+        clicks, and rows selected for an extreme prior-period ratio are disproportionately likely
+        to look ordinary in the next period purely by chance. That is a known vulnerability of
+        ranking on a single noisy prior-period signal, and it is one the model, which combines
+        several pre-decision signals, is less exposed to.
+      </p>
+
+      <h3>4.4 A ranking-quality metric was attempted and set aside</h3>
+      <p>
+        An NDCG@50 variant was also implemented, using the fold's minimum observed value as an
+        additive shift to make the continuous target non-negative before applying the standard
+        <code>2^relevance - 1</code> gain function. This produced NDCG@50 of 0.9900 for the model
+        versus 0.8945 for the baseline, a real, computed number, but it is not used as this
+        paper's primary result. The shift constant, set by rare extreme outlier rows, ends up
+        dominating the exponentiated gain for every row, which compresses genuinely different
+        selections into a narrow, uniformly high NDCG band. A reconstruction using only each
+        fold's own summary statistics reproduces the reported NDCG values closely, confirming that
+        the compression is a property of this particular construction rather than evidence that
+        both methods rank near perfectly. The mean-actual-CTR-gap comparison above requires no
+        such transform and is reported as the primary result instead.
+      </p>
+
+      <h3>4.5 Top-50 cutoff tie check</h3>
+      <p>
+        This is a separate concern from the population-level ties discussed in Section 5. Within
+        each fold's own top-50 cutoff, only one row sat exactly at the boundary value in every
+        fold (49 rows strictly above, one at the cutoff, none below among the selected 50),
+        meaning no large tie block sits at the top of any fold's distribution. This does not
+        contradict the population-wide tie finding in Section 5; the two describe different parts
+        of the same distribution, since the bulk of ties sit well below the top-50 cutoff, among
+        low or zero-activity rows already excluded by the Section 4.1 filter.
+      </p>
+    </section>
+
+    <section id="limitations">
+      <h2>5. Limitations and Honest Framing</h2>
+      <ul class="limits">
+        <li><strong>This is decision support, not a determination.</strong> A high
+          <code>ctr_gap</code> score means a page is worth a human look, not that it definitely
+          needs a rewrite or that a rewrite will fix it.</li>
+        <li><strong>The baseline's scoring structurally favors high-traffic content and
+          clients.</strong> Because the score is impression-weighted, a large client's page with a
+          modest gap can outrank a small client's page with a proportionally worse gap. That is
+          appropriate for a "fix the biggest traffic leak first" objective, but less appropriate if
+          the goal were fair attention across every client.</li>
+        <li><strong>Low CTR has causes this data cannot see.</strong> A SERP feature such as a
+          featured snippet or a "People Also Ask" box absorbing the click, or a branded or
+          navigational query where low CTR is normal, both look identical to genuine
+          underperformance in this dataset. Several such cases were identified during the
+          baseline's top-20 manual review, though they are not reproduced here as part of the
+          public-safety pass.</li>
+        <li><strong>This project's own finding on content staleness disagrees with a related
+          published FlyRank finding.</strong> The published research reports refresh timing as one
+          of the strongest measured levers in its portfolio, while this project's own signal test,
+          on a different data slice, found no relationship between content age and performance
+          decline. Both are reported as they are rather than reconciled artificially. It's also
+          worth noting that the published finding's own text says its most extreme reported ratio
+          comes from a single data point in that bucket, which is worth weighing when comparing the
+          two.</li>
+        <li><strong>The model-versus-baseline comparison is now measured, but on a narrowed
+          population.</strong> Restricting to <code>clicks_last30 &gt; 0</code> was necessary to
+          get a meaningful evaluation, but it means the reported result describes performance on
+          queries that already had some outcome-period activity, not the full long tail of
+          query-content pairs with zero clicks in any given window. Extending the claim to that
+          excluded majority would not be supported by this evaluation.</li>
+        <li><strong>The dataset's target has substantial ties even after narrowing the
+          population.</strong> Of the 83,310 modeling rows, only 10,115 unique target values
+          exist, and 93.03% of rows fall into value groups shared with at least one other row.
+          That's a natural consequence of CTR being a ratio of small integer counts, not a
+          processing error. It doesn't undermine the top-50 result in Section 4, since the ties
+          sit well below the top-50 cutoff as confirmed directly in Section 4.5, but it does mean
+          fine-grained ranking within the bulk of the distribution isn't something this evaluation
+          can speak to.</li>
+        <li><strong>An NDCG@50 variant was computed but not adopted as primary,</strong> after
+          auditing its construction found that the additive relevance shift compresses genuine
+          differences between methods. It's included here for transparency about what was tried,
+          not as a second headline number.</li>
+        <li><strong>The result is a ranking-quality finding, not a causal or
+          production-performance claim.</strong> It shows that the model's flagged pages were, on
+          average, genuinely closer to the underperformance threshold once the outcome period
+          arrived than the baseline's flagged pages. It does not show that acting on either list
+          improves traffic, and no such test was run.</li>
+        <li><strong>This is a single fixed 90-day snapshot.</strong> There is no way, from this
+          data alone, to confirm these patterns hold across seasons, industries, or a longer time
+          horizon.</li>
+      </ul>
+    </section>
+
+    <section id="recommendations">
+      <h2>6. Ranked Recommendations (Action Playbook)</h2>
+      <p>
+        The baseline produces one recommendation type: pages ranking well but converting below the
+        typical rate for their position are flagged for a title and meta rewrite, ranked by the
+        traffic volume the gap represents. Before acting on any flagged page, a reviewer should
+        check whether there's a competing SERP feature on that query right now, whether the query
+        is branded or navigational (where low CTR is expected and normal), and whether the
+        underlying search-volume estimate is current. Auto-publishing a rewrite without this check
+        is explicitly out of scope; the system's role stops at producing a checked, ranked,
+        reasoned list.
+      </p>
+      <p>
+        For monitoring, the position-bucket expected-CTR curve this rule is built on should be
+        recomputed and compared month to month. A meaningful shift there signals that the
+        benchmark itself has gone stale, independent of any single page's score.
+      </p>
+    </section>
+
+    <section id="reproducibility">
+      <h2>7. Reproducibility</h2>
+      <p><strong>Repository:</strong>
+        <a href="https://github.com/QaziMahadAhmad/flyrank-ml-internship-starter" target="_blank" rel="noopener">
+          github.com/QaziMahadAhmad/flyrank-ml-internship-starter</a>
+      </p>
+      <p><strong>Notebooks, in project order:</strong></p>
+      <ul>
+        <li><code>work/notebooks/w01_research_question.ipynb</code> &mdash; lane and question</li>
+        <li><code>w02_ml_task_framing.ipynb</code> &mdash; ML task framing</li>
+        <li><code>w03_data_contract.ipynb</code> &mdash; data contract</li>
+        <li><code>w03_feature_leakage_check.ipynb</code> &mdash; feature build and leakage tests</li>
+        <li><code>w04_signal_audit.ipynb</code> &mdash; signal validation</li>
+        <li><code>w04_baseline_score.ipynb</code> &mdash; baseline rule and real output</li>
+        <li><code>w05_model.ipynb</code> &mdash; model training and evaluation</li>
+        <li><code>w06_validation_audit.ipynb</code> &mdash; validation and research-claim audit</li>
+        <li><code>w07_action_playbook.ipynb</code> &mdash; recommendation packaging</li>
+      </ul>
+      <p><strong>Seeds:</strong> <code>random_state=42</code> is used throughout for the model and
+        the cross-validation folds.</p>
+      <p><strong>How the final evaluation was produced:</strong> <code>fact_content_query_90d</code>
+        was filtered to <code>clicks_last30 &gt; 0</code> immediately after loading (85,115 rows),
+        joined to live <code>dim_content</code> and filtered to a valid target (83,310 modeling
+        rows), then split with <code>GroupKFold(n_splits=5)</code> on <code>client_hash_id</code>.
+        For each fold, <code>HistGradientBoostingRegressor(random_state=42)</code> was trained on
+        the train-fold rows and used to select that fold's top-50 test rows by predicted
+        <code>ctr_gap_last30</code>. The fairness-matched baseline selected its own top-50 by
+        <code>prev30_ctr_gap</code> over the same test rows, and both selections were checked
+        against the real, held-out <code>ctr_gap_last30</code> for those rows.
+      </p>
+      <div class="callout">
+        <strong>Known limitation of the current implementation, not of the result:</strong> the
+        NDCG@50 metric discussed in Section 4.4 uses a relevance-shift construction that isn't
+        recommended for reuse as is. Anyone extending this work should adopt the
+        mean-actual-outcome comparison from Section 4.3 or a rank-correlation metric such as
+        Spearman instead.
+      </div>
+    </section>
+
+    <section id="acknowledgments">
+      <h2>Acknowledgments and Data Credit</h2>
+      <p>
+        Built on the FlyRank ML Internship dataset, provided by
+        <a href="https://flyrank.ai" target="_blank" rel="noopener">FlyRank</a> for internship
+        training and portfolio development. All data used is anonymized, and no
+        client-identifying information appears in this paper or its underlying analysis.
+      </p>
+    </section>
+
+    <footer>
+      <p>Research paper and analysis by Mahad Ahmad, FlyRank AI/ML Internship. Source and
+        notebooks: <a href="https://github.com/QaziMahadAhmad/flyrank-ml-internship-starter" target="_blank" rel="noopener">GitHub repository</a>.</p>
+    </footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  var toggle = document.getElementById('themeToggle');
+  var root = document.documentElement;
+  var saved = null;
+  try { saved = localStorage.getItem('theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  toggle.addEventListener('click', function () {
+    var current = root.getAttribute('data-theme');
+    var next = current === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('theme', next); } catch (e) {}
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var sections = links.map(function (a) {
+    return document.querySelector(a.getAttribute('href'));
+  });
+  function onScroll() {
+    var pos = window.scrollY + 120;
+    var activeIndex = 0;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i] && sections[i].offsetTop <= pos) activeIndex = i;
+    }
+    links.forEach(function (a, i) {
+      a.classList.toggle('active', i === activeIndex);
+    });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+
+</body>
+</html>
